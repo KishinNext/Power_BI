@@ -1,0 +1,6 @@
+let
+  Origen = SharePoint.Files(SHAREPOINT, [ApiVersion = 15]),
+  Navegación = Origen{[Name = "FILE", #"Folder Path" = FOLDER]}[Content],
+  #"Imported Excel" = Excel.Workbook(Navegación)
+in
+  #"Imported Excel"
