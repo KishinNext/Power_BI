@@ -1,0 +1,44 @@
+let
+  StartDate = #date(StartYear,1,1),
+  EndDate = #date(EndYear,12,31),
+  NumberOfDays = Duration.Days( EndDate - StartDate ),
+  Dates = List.Dates(StartDate, NumberOfDays+1, #duration(1,0,0,0)),
+  // Crear lista de Fechas
+  #"Converted to Table" = Table.FromList(Dates, Splitter.SplitByNothing(), null, null, ExtraValues.Error),
+  // Transformar lista en tabla
+  #"Renamed Columns" = Table.RenameColumns(#"Converted to Table", {{"Column1", "Fecha"}}),
+  #"Changed Type" = Table.TransformColumnTypes(#"Renamed Columns", {{"Fecha", type date}}),
+  #"Año insertado" = Table.AddColumn(#"Changed Type", "Año", each Date.Year([Fecha])),
+  #"Año Corto" = Table.AddColumn(#"Año insertado", "Año Corto", each Text.End(Number.ToText(Date.Year([Fecha])), 2)),
+  #"Mes insertado" = Table.AddColumn(#"Año Corto", "Mes", each Date.Month([Fecha]), Int64.Type),
+  #"Id_mes_ año" = Table.AddColumn(#"Mes insertado", "Id_Mes", each if Text.Length(Number.ToText([Mes]))=1 
+then  Number.ToText([Año])&"0"&Number.ToText([Mes])
+else  Number.ToText([Año])&Number.ToText([Mes])),
+  #"Tipo cambiado1" = Table.TransformColumnTypes(#"Id_mes_ año", {{"Id_Mes", Int64.Type}}),
+  #"Nombre del mes insertado" = Table.AddColumn(#"Tipo cambiado1", "Mes Largo", each Date.MonthName([Fecha]), type text),
+  #"Mes Corto" = Table.AddColumn(#"Nombre del mes insertado", "Mes Corto", each Date.ToText([Fecha], "MMM")),
+  #"Mes Año Corto" = Table.AddColumn(#"Mes Corto", "Mes Año", each Date.ToText([Fecha],"MMM") & " " & Text.End(Number.ToText(Date.Year([Fecha])),2)),
+  #"Trimestre insertado" = Table.AddColumn(#"Mes Año Corto", "Trimestre", each Date.QuarterOfYear([Fecha]), Int64.Type),
+  Id_Trimestre = Table.AddColumn(#"Trimestre insertado", "Id_trimestre", each Number.ToText([Año])  & Number.ToText([Trimestre])),
+  #"Personalizada agregada" = Table.AddColumn(Id_Trimestre, "Trimestre Corto", each Number.ToText([Trimestre])  & "T"),
+  #"Trimestre Año" = Table.AddColumn(#"Personalizada agregada", "Trimestre Año", each Number.ToText([Trimestre])  & "T " &  Number.ToText([Año])),
+  #"Semana del año insertada" = Table.AddColumn(#"Trimestre Año", "Semana del año", each Date.WeekOfYear([Fecha], 1), Int64.Type),
+  #"Semana del mes insertada" = Table.AddColumn(#"Semana del año insertada", "Semana del mes", each Date.WeekOfMonth([Fecha]), Int64.Type),
+  #"Día insertado" = Table.AddColumn(#"Semana del mes insertada", "Día del Mes", each Date.Day([Fecha]), Int64.Type),
+  #"Día del año insertado" = Table.AddColumn(#"Día insertado", "Día del año", each Date.DayOfYear([Fecha]), Int64.Type),
+  #"Día de la semana insertado" = Table.AddColumn(#"Día del año insertado", "Día de la semana", each Date.DayOfWeek([Fecha]), Int64.Type),
+  #"Nombre del día insertado" = Table.AddColumn(#"Día de la semana insertado", "Nombre del día", each Date.DayOfWeekName([Fecha]), type text),
+  #"Dia Corto" = Table.AddColumn(#"Nombre del día insertado", "Dia Corto", each Text.Start(Date.DayOfWeekName([Fecha]), 3)),
+  #"Inserted Start of Week" = Table.AddColumn(#"Dia Corto", "Start of Week", each Date.StartOfWeek([Fecha], 1), type date),
+  #"Inserted End of Week" = Table.AddColumn(#"Inserted Start of Week", "End of Week", each Date.EndOfWeek([Start of Week], 1), type date),
+  #"Columnas con nombre cambiado" = Table.RenameColumns(#"Inserted End of Week", {{"Fecha", "Fecha"}}),
+  #"Rango Semana" = Table.AddColumn(#"Columnas con nombre cambiado", "Rango Semana", each Date.ToText([Start of Week],"dd/MMM") & " - "& Date.ToText([End of Week],"dd/MMM")),
+  #"Changed Type2" = Table.TransformColumnTypes(#"Rango Semana", {{"Año Corto", Int64.Type}, {"Año", Int64.Type}, {"Id_Mes", Int64.Type}}),
+  #"Mes Actual" = Table.AddColumn(#"Changed Type2", "Mes Año(Mes Actual)", each if Date.IsInCurrentMonth([Fecha]) then "Mes Actual" else [Mes Año]),
+  #"Removed Other Columns" = Table.SelectColumns(#"Mes Actual", {"Fecha", "Año", "Mes", "Id_Mes", "Mes Largo", "Mes Corto", "Mes Año", "Trimestre", "Trimestre Corto", "Trimestre Año", "Semana del año", "Semana del mes", "Nombre del día", "Start of Week", "End of Week", "Rango Semana", "Mes Año(Mes Actual)"}),
+  #"Transformar columnas" = Table.TransformColumnTypes(#"Removed Other Columns", {{"Mes Corto", type text}, {"Mes Año", type text}}),
+  #"Reemplazar errores" = Table.ReplaceErrorValues(#"Transformar columnas", {{"Mes Corto", null}, {"Mes Año", null}}),
+  #"Transformar columnas 1" = Table.TransformColumnTypes(#"Reemplazar errores", {{"Trimestre Corto", type text}, {"Trimestre Año", type text}, {"Rango Semana", type text}, {"Mes Año(Mes Actual)", type text}}),
+  #"Reemplazar errores 1" = Table.ReplaceErrorValues(#"Transformar columnas 1", {{"Trimestre Corto", null}, {"Trimestre Año", null}, {"Rango Semana", null}, {"Mes Año(Mes Actual)", null}})
+in
+  #"Reemplazar errores 1"
