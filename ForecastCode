@@ -1,0 +1,118 @@
+# The following code to create a dataframe and remove duplicated rows is always executed and acts as a preamble for your script: 
+
+# dataset = pandas.DataFrame(Día del Mes, Opcion Gestionadas / Atendidas Total, Max_day, Total meta, Seleccione día de análisis Value, Total meta diaria)
+# dataset = dataset.drop_duplicates()
+
+# Paste or type your script code here:
+import numpy as np
+import pandas as pd
+# import pmdarima as pm
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import figure
+import matplotlib.patheffects as path_effects
+from pandas.plotting import autocorrelation_plot
+from statsmodels.tsa.arima.model import ARIMA
+import seaborn as sns
+import statsmodels.api as sm
+
+
+# model = pm.auto_arima(dataset['Opcion Gestionadas / Atendidas Total'], start_p=1, start_q=1,
+#                       test='adf',       # use adftest to find optimal 'd'
+#                       max_p=7, max_q=5, # maximum p and q
+#                       m=7,              # frequency of series
+#                       d=1,           # let model determine 'd'
+#                       seasonal=True,    # Yes Seasonality
+#                       start_P=0, 
+#                       D=0, 
+#                       trace=True,
+#                       error_action='ignore',  
+#                       suppress_warnings=True, 
+#                       stepwise=True)
+
+
+"""
+    Select variables to manipulate
+"""
+meta = dataset['Total meta'].iloc[-1]
+meta_diaria = dataset['Total meta diaria'].iloc[-1]
+select  = dataset['Seleccione día de análisis Value'].iloc[-1]
+
+
+"""
+    Create de forecast Model
+"""
+model = sm.tsa.statespace.SARIMAX(dataset['Opcion Gestionadas / Atendidas Total'], order=(5, 1, 0), seasonal_order = (0,0,0,7), enforce_stationarity=True, enforce_invertibility=False, trend='c')
+res = model.fit(disp=False)
+
+"""
+    Create de periods to predict and the index of that periods
+"""
+n_periods = dataset['Max_day'].iloc[-1].item() - len(dataset['Opcion Gestionadas / Atendidas Total'])
+index_of_fc = np.arange(len(dataset['Opcion Gestionadas / Atendidas Total']), len(dataset['Opcion Gestionadas / Atendidas Total'])+n_periods+1)
+
+
+"""
+    Run predict forecast
+"""
+fcast_res2 = res.get_forecast(steps=n_periods+1)
+
+"""
+    Create Dataframe and series to the Forecast
+"""
+result_forecast = pd.DataFrame(fcast_res2.summary_frame())[['mean',  'mean_ci_lower', 'mean_ci_upper']]
+lower_series = pd.Series(result_forecast['mean_ci_lower'], index=index_of_fc)
+upper_series = pd.Series(result_forecast['mean_ci_upper'], index=index_of_fc)
+
+
+"""
+    Cretae a resum of the dataframe of the forecast
+"""
+result_forecast.rename_axis(None, axis=1, inplace=True)
+result_forecast = result_forecast.rename(columns = {'mean': 'Opcion Gestionadas / Atendidas Total', 'mean_ci_lower': 'Opcion Gestionadas / Atendidas Total Lower', 'mean_ci_upper' : 'Opcion Gestionadas / Atendidas Total Upper'})
+result_forecast['source'] = 'Valores Predichos'
+result_forecast = result_forecast.reindex(columns=['Opcion Gestionadas / Atendidas Total','source','Opcion Gestionadas / Atendidas Total Lower','Opcion Gestionadas / Atendidas Total Upper'])
+
+
+"""
+    Reset index of the input table from 0 to 1
+"""
+datatemp = dataset
+datatemp.index += 1 
+input_series = pd.Series(datatemp['Opcion Gestionadas / Atendidas Total'], index=np.arange(1, len(dataset['Opcion Gestionadas / Atendidas Total'])+1))
+
+
+"""
+    it's Join the forecast dataframe and input dataframe, the dataframe will repeat en the cross point of the dataframes
+"""
+temp_input = input_series.to_frame()
+temp_input = temp_input.rename(columns = {"Opcion Gestionadas / Atendidas Total":"Opcion Gestionadas / Atendidas Total"})
+temp_input['source'] = 'Valores Reales'
+temp_input['Opcion Gestionadas / Atendidas Total Lower'] = temp_input['Opcion Gestionadas / Atendidas Total']
+temp_input['Opcion Gestionadas / Atendidas Total Upper'] = temp_input['Opcion Gestionadas / Atendidas Total']
+result = pd.concat([temp_input, result_forecast])
+result["Día del mes"] = result.index
+result["Esperado"] = meta_diaria * result["Día del mes"]
+
+
+
+"""
+    Plot the forecast
+"""
+sns.set_style(style='white')
+fig, ax = plt.subplots(figsize=(8, 5), dpi=700)
+csfont = {'fontname':'Comic Sans MS'}
+graph = sns.lineplot(data=result, x="Día del mes", y="Opcion Gestionadas / Atendidas Total", hue="source", markers='*')
+graph = sns.lineplot(data=result, x="Día del mes", y="Esperado", markers='*', color = "#C8C6C4")
+graph.axhline(meta, ls='--', color='black')
+graph.axvline(select, ls='--', color='red')
+plt.ylabel('Valores de la predicción')
+plt.fill_between(lower_series.index, 
+                 lower_series, 
+                 upper_series, 
+                 color='k', alpha=.15)
+
+plt.gca().legend().set_title('')
+plt.legend(loc='upper left', fontsize=10)
+plt.show()
+
+
